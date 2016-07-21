@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 // Simplifed xv6 shell.
 
@@ -43,7 +44,7 @@ struct cmd *parsecmd(char*);
 void
 runcmd(struct cmd *cmd)
 {
-  int p[2], r;
+  int p[2], r, errsv;
   struct execcmd *ecmd;
   struct pipecmd *pcmd;
   struct redircmd *rcmd;
@@ -60,22 +61,52 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(0);
-    fprintf(stderr, "exec not implemented\n");
     // Your code here ...
+    // implemented exec
+    execvp(ecmd->argv[0], ecmd->argv);
+    errsv = errno;
+    fprintf(stderr, "ERRNO: %d\n%s\n", errsv, strerror(errsv));
+    exit(-1);
+    // code end
     break;
 
   case '>':
   case '<':
     rcmd = (struct redircmd*)cmd;
-    fprintf(stderr, "redir not implemented\n");
     // Your code here ...
+    // implemented redir
+    if (close(rcmd->fd) == -1 || open(rcmd->file, rcmd->mode, 0666) == -1){
+      errsv = errno;
+      fprintf(stderr, "ERRNO: %d\n%s\n", errsv, strerror(errsv));
+      exit(-1);
+    }
+    // code end
     runcmd(rcmd->cmd);
     break;
 
   case '|':
     pcmd = (struct pipecmd*)cmd;
-    fprintf(stderr, "pipe not implemented\n");
     // Your code here ...
+    // implemented pipe
+    pipe(p);
+    // pcmd->left must be the son process
+    // otherwise, the shell would continue to run
+    // as soon as the first pcmd->left has finished
+    if (fork1() == 0){
+      close(1);
+      dup(p[1]);
+      close(p[0]);
+      close(p[1]);
+      runcmd(pcmd->left);
+    }
+    else{
+      close(0);
+      dup(p[0]);
+	  close(p[0]);
+	  close(p[1]);
+	  runcmd(pcmd->right);
+    }
+    // code end
     break;
   }    
   exit(0);
